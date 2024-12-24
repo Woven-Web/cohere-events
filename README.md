@@ -29,11 +29,11 @@ pip install -r requirements.txt
    - Create OAuth 2.0 credentials
    - Download the credentials and save as `credentials.json` in the backend directory
 
-5. Set up AISuite API:
+5. Set up Anthropic API:
    - Create a `.env` file in the backend directory
-   - Add your AISuite API key:
+   - Add your Anthropic API key:
      ```
-     AISUITE_API_KEY=your_api_key_here
+     ANTHROPIC_API_KEY=your_api_key_here
      ```
 
 6. Run the backend server:
