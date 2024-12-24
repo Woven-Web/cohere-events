@@ -1,0 +1,10 @@
+flask==3.0.0
+flask-cors==4.0.0
+requests==2.31.0
+beautifulsoup4==4.12.2
+python-dotenv==1.0.0
+google-auth-oauthlib==1.1.0
+google-auth-httplib2==0.1.1
+google-api-python-client==2.108.0
+aisuite[anthropic]==0.1.6
+httpx==0.27.0
