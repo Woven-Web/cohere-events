@@ -12,20 +12,21 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 import pickle
 import logging
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
-import re
-import asyncio
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Get environment variables
+ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
+SERVER_URL = os.getenv('SERVER_URL', 'http://127.0.0.1:5000')  # Default to localhost for development
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__, static_folder='../frontend/dist')
+app.config['TESTING'] = True
 CORS(app)
 
 # If modifying these scopes, delete the file token.pickle.
@@ -256,69 +257,5 @@ def create_event():
             'details': str(e)
         }), 500
 
-def run_flask():
-    app.run(debug=False, port=5000)
-
-def main():
-    # Start Flask in a separate process
-    from multiprocessing import Process
-    flask_process = Process(target=run_flask)
-    flask_process.start()
-    
-    # Wait for Flask to start
-    import time
-    print("Waiting for Flask to start...")
-    time.sleep(2)  # Give Flask 2 seconds to start
-    
-    # Create and run the bot
-    token = os.getenv('TELEGRAM_BOT_TOKEN')
-    print(f"Token exists: {bool(token)}")
-    application = ApplicationBuilder().token(token).build()
-
-    async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        print("Start command received!")
-        await update.message.reply_text("Hi! Send me an event link and I'll parse it for you!")
-
-    async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        print("handle_link called", update.message.text)
-        message = update.message.text
-        url_pattern = r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
-        urls = re.findall(url_pattern, message)
-        
-        if urls:
-            url = urls[0]
-            try:
-                # Make request to our parse-event endpoint with telegram style
-                response = requests.post('http://127.0.0.1:5000/parse-event', 
-                                      json={'url': url, 'description_style': 'telegram'})
-                response.raise_for_status()  # Raise an error for bad status codes
-                
-                event_details = response.json()
-                # Send formatted message to Telegram
-                message_text = f"""
-Event Detected! 🎉
-Title: {event_details['title']}
-Time: {event_details['start_time']} - {event_details['end_time']}
-Location: {event_details['location']}
-
-{event_details['description'][:500]}...
-                """
-                await update.message.reply_text(message_text)
-            except Exception as e:
-                print(f"Error processing link: {e}")
-                await update.message.reply_text(f"Sorry, I couldn't parse that event link. Error: {str(e)}")
-        else:
-            await update.message.reply_text("No URL found in the message. Please send me an event link to parse.")
-
-    # Add handlers
-    print("Setting up handlers...")
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & filters.Entity("url"), handle_link))
-
-    # Start the bot
-    print("Starting bot...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
-    print("Bot is running!")
-
 if __name__ == '__main__':
-    main()
+    app.run()

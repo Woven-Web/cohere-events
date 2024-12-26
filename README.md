@@ -4,41 +4,109 @@ This application allows users to parse event details from a webpage and create G
 
 ## Setup
 
-### Backend Setup
+1. Clone the repository
 
-1. Navigate to the backend directory:
+2. Set up the backend:
 ```bash
+# Navigate to backend directory
 cd backend
-```
 
-2. Create a virtual environment and activate it:
-```bash
+# Create virtual environment
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
 
-3. Install dependencies:
-```bash
+# Activate virtual environment
+# On macOS/Linux:
+source venv/bin/activate
+# On Windows:
+# venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
+
+# Copy environment file
+cp .env.sample .env
 ```
 
-4. Set up Google Calendar API:
-   - Go to the [Google Cloud Console](https://console.cloud.google.com/)
-   - Create a new project
-   - Enable the Google Calendar API
-   - Create OAuth 2.0 credentials
-   - Download the credentials and save as `credentials.json` in the backend directory
+3. Configure your `.env` file with required API keys
 
-5. Set up Anthropic API:
-   - copy the `.env.sample` file to .env` in the backend directory
-   - Add your Anthropic API and Telegram keys:
+## Running the Application
 
-6. Run the backend server:
+The application consists of two components that need to be run separately:
+
+### 1. Flask Web Server
+
+Run the Flask application using Gunicorn (make sure your virtual environment is activated):
 ```bash
-python app.py
+# If not already in backend directory
+cd backend
+
+# Activate virtual environment if not already activated
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Start the server
+gunicorn wsgi:app --bind 127.0.0.1:5000
 ```
 
-### Frontend Setup
+This will start the web server at http://127.0.0.1:5000
+
+### 2. Telegram Bot
+
+In a separate terminal, run the Telegram bot (make sure your virtual environment is activated):
+```bash
+# If not already in backend directory
+cd backend
+
+# Activate virtual environment if not already activated
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Start the bot
+python bot.py
+```
+
+The bot will start and listen for messages containing event links.
+
+## Railway Deployment
+
+The application requires two services on Railway:
+
+### 1. Flask Web Service
+1. Create a new service pointing to your repository
+2. Set the start command: `gunicorn wsgi:app --bind 0.0.0.0:$PORT`
+3. Add environment variables:
+   - `ANTHROPIC_API_KEY`
+
+### 2. Telegram Bot Service
+1. Create another service pointing to the same repository
+2. Set the start command: `python bot.py`
+3. Add environment variables:
+   - `TELEGRAM_BOT_TOKEN`
+   - `API_URL`: Set to `https://${RAILWAY_STATIC_URL}/api`
+4. Add service dependency:
+   - Go to Settings > Dependencies
+   - Add the Flask service as a dependency
+
+Railway will ensure the Flask service is running before starting the bot service.
+
+## Usage
+
+### Web Interface
+- Visit http://127.0.0.1:5000 (or your Railway URL)
+- Paste an event URL to parse event details
+
+### Telegram Bot
+1. Start a chat with the bot
+2. Send `/start` to begin
+3. Send any event URL to get parsed details
+4. The bot will react with 👀 when processing your link
+
+## Environment Variables
+
+- `ANTHROPIC_API_KEY`: Your Anthropic API key
+- `TELEGRAM_BOT_TOKEN`: Your Telegram bot token
+
+## Frontend Development
+
+For frontend development:
 
 1. Navigate to the frontend directory:
 ```bash
@@ -50,18 +118,10 @@ cd frontend
 npm install
 ```
 
-3. Run the development server:
+3. Start the development server:
 ```bash
 npm run dev
 ```
-
-## Usage
-
-1. Open your browser and navigate to the frontend application (usually at http://localhost:5173)
-2. Enter the URL of a webpage containing event details
-3. Click "Parse Event" to extract the event information
-4. Review and modify the extracted details if needed
-5. Click "Create Event" to add the event to your Google Calendar
 
 ## Technologies Used
 
@@ -76,5 +136,3 @@ npm run dev
   - BeautifulSoup4
   - AISuite API
   - Google Calendar API
-
-pls deploy railway
