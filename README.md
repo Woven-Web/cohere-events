@@ -71,8 +71,12 @@ The application requires two services on Railway:
 
 ### 1. Flask Web Service
 1. Create a new service pointing to your repository
-2. Set the start command: `gunicorn wsgi:app --bind 0.0.0.0:$PORT`
-3. Add environment variables:
+2. Set the build command: 
+   ```bash
+   cd frontend && npm install && npm run build && cd ../backend && pip install -r requirements.txt
+   ```
+3. Set the start command: `gunicorn wsgi:app --bind 0.0.0.0:$PORT`
+4. Add environment variables:
    - `ANTHROPIC_API_KEY`
 
 ### 2. Telegram Bot Service
