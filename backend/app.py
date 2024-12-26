@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import requests
 from bs4 import BeautifulSoup
@@ -12,12 +12,20 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 import pickle
 import logging
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
+import re
+import asyncio
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='../frontend/dist')
 CORS(app)
 
 # If modifying these scopes, delete the file token.pickle.
@@ -78,18 +86,24 @@ def validate_event_details(event_details):
         logger.error(f"Validation error: {str(e)}")
         return [f"Validation error: {str(e)}"]
 
-def parse_event_with_ai(page_content, source_url):
+def parse_event_with_ai(page_content, source_url, description_style="default"):
     client = ai.Client()
+    
+    description_prompts = {
+        "default": "A comprehensive description that includes all relevant details about the event. Include any important information like agenda, speakers, requirements, or special notes.",
+        "telegram": "A brief, concise summary of the event (2-3 sentences max) highlighting only the most important details. Focus on what, when, and why someone might want to attend."
+    }
+    
+    description_prompt = description_prompts.get(description_style, description_prompts["default"])
     
     prompt = f"""Extract event details from the following webpage content. 
     Return a JSON object with these fields:
     - title: event title
-    - description: A comprehensive description that includes all relevant details about the event. Include any important information like agenda, speakers, requirements, or special notes. Start the description with 'Source: {source_url}\n\n' followed by the full description.
+    - description: {description_prompt} Start the description with 'Source: {source_url}\n\n' followed by the description.
     - start_time: start time in ISO format
     - end_time: end time in ISO format
     - location: event location
 
-    Make the description detailed but well-organized. Include any important details found in the content, formatted in a readable way.
     Give just the json object with no extra text or formatting.
 
     Webpage content:
@@ -121,9 +135,21 @@ def parse_event_with_ai(page_content, source_url):
         logger.error(f"AI parsing error: {str(e)}")
         raise
 
+@app.route('/')
+def serve_frontend():
+    return send_from_directory(app.static_folder, 'index.html')
+
+# Serve static files
+@app.route('/<path:path>')
+def serve_static(path):
+    if path.startswith('assets/'):
+        return send_from_directory(app.static_folder, path)
+    return send_from_directory(app.static_folder, 'index.html')
+
 @app.route('/parse-event', methods=['POST'])
 def parse_event():
     url = request.json.get('url')
+    description_style = request.json.get('description_style', 'default')
     if not url:
         return jsonify({'error': 'URL is required'}), 400
     
@@ -151,7 +177,7 @@ def parse_event():
         
         # Use AI to parse the event details
         logger.info("Parsing event details with AI")
-        event_details = parse_event_with_ai(text_content, url)
+        event_details = parse_event_with_ai(text_content, url, description_style)
         
         # Parse the JSON response
         try:
@@ -230,5 +256,69 @@ def create_event():
             'details': str(e)
         }), 500
 
+def run_flask():
+    app.run(debug=False, port=5000)
+
+def main():
+    # Start Flask in a separate process
+    from multiprocessing import Process
+    flask_process = Process(target=run_flask)
+    flask_process.start()
+    
+    # Wait for Flask to start
+    import time
+    print("Waiting for Flask to start...")
+    time.sleep(2)  # Give Flask 2 seconds to start
+    
+    # Create and run the bot
+    token = os.getenv('TELEGRAM_BOT_TOKEN')
+    print(f"Token exists: {bool(token)}")
+    application = ApplicationBuilder().token(token).build()
+
+    async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        print("Start command received!")
+        await update.message.reply_text("Hi! Send me an event link and I'll parse it for you!")
+
+    async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        print("handle_link called", update.message.text)
+        message = update.message.text
+        url_pattern = r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
+        urls = re.findall(url_pattern, message)
+        
+        if urls:
+            url = urls[0]
+            try:
+                # Make request to our parse-event endpoint with telegram style
+                response = requests.post('http://127.0.0.1:5000/parse-event', 
+                                      json={'url': url, 'description_style': 'telegram'})
+                response.raise_for_status()  # Raise an error for bad status codes
+                
+                event_details = response.json()
+                # Send formatted message to Telegram
+                message_text = f"""
+Event Detected! 🎉
+Title: {event_details['title']}
+Time: {event_details['start_time']} - {event_details['end_time']}
+Location: {event_details['location']}
+
+{event_details['description'][:500]}...
+                """
+                await update.message.reply_text(message_text)
+            except Exception as e:
+                print(f"Error processing link: {e}")
+                await update.message.reply_text(f"Sorry, I couldn't parse that event link. Error: {str(e)}")
+        else:
+            await update.message.reply_text("No URL found in the message. Please send me an event link to parse.")
+
+    # Add handlers
+    print("Setting up handlers...")
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & filters.Entity("url"), handle_link))
+
+    # Start the bot
+    print("Starting bot...")
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    print("Bot is running!")
+
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    main()
