@@ -100,7 +100,7 @@ Before deploying:
 3. Set the start command: `python bot.py`
 4. Add environment variables:
    - `TELEGRAM_BOT_TOKEN`
-   - `API_URL`: Set to `https://${RAILWAY_STATIC_URL}/api`
+   - `API_URL`: Set to `https://${flask api + web app.RAILWAY_PUBLIC_DOMAIN}`
 5. Add service dependency:
    - Go to Settings > Dependencies
    - Add the Flask service as a dependency

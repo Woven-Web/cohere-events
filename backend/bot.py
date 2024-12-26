@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-API_URL = os.getenv('API_URL', 'http://127.0.0.1:5000')
+API_URL = os.getenv('API_URL', 'http://127.0.0.1:8080').rstrip('/')  # Default to port 8080 to match Railway
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
