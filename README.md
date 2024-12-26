@@ -30,11 +30,8 @@ pip install -r requirements.txt
    - Download the credentials and save as `credentials.json` in the backend directory
 
 5. Set up Anthropic API:
-   - Create a `.env` file in the backend directory
-   - Add your Anthropic API key:
-     ```
-     ANTHROPIC_API_KEY=your_api_key_here
-     ```
+   - copy the `.env.sample` file to .env` in the backend directory
+   - Add your Anthropic API and Telegram keys:
 
 6. Run the backend server:
 ```bash
