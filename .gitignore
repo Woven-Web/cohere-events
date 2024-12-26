@@ -21,6 +21,6 @@ node_modules/
 .env.production.local
 
 # Build files
-dist/
+frontend/dist/
 build/
 *.log

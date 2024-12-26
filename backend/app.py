@@ -25,14 +25,19 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialize Flask app
-app = Flask(__name__, static_folder='static')
+app = Flask(__name__, static_folder='dist', static_url_path='')
 app.config['TESTING'] = True
-CORS(app)
 
-# Initialize calendar service if credentials exist
-calendar_service = None
-if os.path.exists('credentials.json'):
-    calendar_service = get_calendar_service()
+@app.route('/')
+def serve_frontend():
+    return app.send_static_file('index.html')
+
+# Catch all routes to handle React Router
+@app.route('/<path:path>')
+def catch_all(path):
+    if path.startswith('api/'):
+        return {'error': 'Not found'}, 404
+    return app.send_static_file('index.html')
 
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/calendar']
@@ -52,8 +57,16 @@ def get_calendar_service():
             creds = flow.run_local_server(port=0)
         with open('token.pickle', 'wb') as token:
             pickle.dump(creds, token)
-
+    
     return build('calendar', 'v3', credentials=creds)
+
+# Initialize calendar service if credentials exist
+calendar_service = None
+try:
+    if os.path.exists('credentials.json'):
+        calendar_service = get_calendar_service()
+except Exception as e:
+    logger.warning(f"Failed to initialize calendar service: {e}")
 
 def validate_event_details(event_details):
     """Validate the parsed event details and return any issues."""
@@ -140,17 +153,6 @@ def parse_event_with_ai(page_content, source_url, description_style="default"):
         logger.error(e)
         logger.error(f"AI parsing error: {str(e)}")
         raise
-
-@app.route('/')
-def serve_frontend():
-    return send_from_directory(app.static_folder, 'index.html')
-
-# Serve static files
-@app.route('/<path:path>')
-def serve_static(path):
-    if path.startswith('assets/'):
-        return send_from_directory(app.static_folder, path)
-    return send_from_directory(app.static_folder, 'index.html')
 
 @app.route('/parse-event', methods=['POST'])
 def parse_event():

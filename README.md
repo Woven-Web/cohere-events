@@ -2,9 +2,20 @@
 
 A web application and Telegram bot for parsing and managing event details from various platforms.
 
-## Local Setup
+## Local Development Setup
 
-1. Clone the repository
+### Prerequisites
+- Python 3.8+
+- Node.js 16+
+- npm
+
+### Installation
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/cohere-events.git
+cd cohere-events
+```
 
 2. Set up the backend:
 ```bash
@@ -34,44 +45,43 @@ cd frontend
 
 # Install dependencies
 npm install
-
-# Build the frontend
-npm run build
 ```
 
 4. Configure your `.env` file with required API keys
 
 ## Running Locally
 
-The application consists of two components that need to be run separately:
+### Development Mode (with auto-reload)
 
-### 1. Flask Web Server
-
-Run the Flask application using Gunicorn (make sure your virtual environment is activated):
+1. Build the frontend with watch mode:
 ```bash
-# If not already in backend directory
+cd frontend
+npm run build
+```
+The frontend will automatically rebuild when you make changes.
+
+2. Run the Flask development server:
+```bash
 cd backend
+python app.py
+```
 
-# Activate virtual environment if not already activated
+The application will be available at http://localhost:5000
+
+### Production Mode
+
+Run the Flask application using Gunicorn:
+```bash
+cd backend
 source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Start the server
 gunicorn wsgi:app --bind 127.0.0.1:5000
 ```
 
-This will start the web server at http://127.0.0.1:5000
-
-### 2. Telegram Bot
-
-In a separate terminal, run the Telegram bot (make sure your virtual environment is activated):
+### Telegram Bot (Optional)
+In a separate terminal:
 ```bash
-# If not already in backend directory
 cd backend
-
-# Activate virtual environment if not already activated
 source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Start the bot
 python bot.py
 ```
 
@@ -107,41 +117,27 @@ Before deploying:
 
 Railway will ensure the Flask service is running before starting the bot service.
 
-## Usage
+## Architecture
 
-### Web Interface
-- Visit http://127.0.0.1:5000 (or your Railway URL)
-- Paste an event URL to parse event details
+- Frontend: React + Vite
+- Backend: Flask
+- The frontend builds directly into the backend's static directory
+- Auto-rebuilds on frontend changes for seamless development
+- Optional Telegram bot integration
 
-### Telegram Bot
-1. Start a chat with the bot
-2. Send `/start` to begin
-3. Send any event URL to get parsed details
-4. The bot will react with 👀 when processing your link
+## Features
+
+- Parse event details from Partiful links
+- Create Google Calendar events with parsed details
+- Timezone-aware event handling
+- Clean, modern UI
+- Telegram bot integration for easy event parsing
 
 ## Environment Variables
 
+Required variables in `.env`:
 - `ANTHROPIC_API_KEY`: Your Anthropic API key
-- `TELEGRAM_BOT_TOKEN`: Your Telegram bot token
-
-## Frontend Development
-
-For frontend development:
-
-1. Navigate to the frontend directory:
-```bash
-cd frontend
-```
-
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. Start the development server:
-```bash
-npm run dev
-```
+- `TELEGRAM_BOT_TOKEN`: Your Telegram bot token (only if using bot)
 
 ## Technologies Used
 
@@ -156,3 +152,11 @@ npm run dev
   - BeautifulSoup4
   - AISuite API
   - Google Calendar API
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
