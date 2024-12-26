@@ -76,3 +76,5 @@ npm run dev
   - BeautifulSoup4
   - AISuite API
   - Google Calendar API
+
+pls deploy railway
