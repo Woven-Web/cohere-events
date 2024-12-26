@@ -1,8 +1,8 @@
-# Event Parser App
+# Cohere Events
 
-This application allows users to parse event details from a webpage and create Google Calendar events automatically. It features a React frontend and a Python Flask backend with AI-powered event parsing.
+A web application and Telegram bot for parsing and managing event details from various platforms.
 
-## Setup
+## Local Setup
 
 1. Clone the repository
 
@@ -27,9 +27,21 @@ pip install -r requirements.txt
 cp .env.sample .env
 ```
 
-3. Configure your `.env` file with required API keys
+3. Set up the frontend:
+```bash
+# Navigate to frontend directory
+cd frontend
 
-## Running the Application
+# Install dependencies
+npm install
+
+# Build the frontend
+npm run build
+```
+
+4. Configure your `.env` file with required API keys
+
+## Running Locally
 
 The application consists of two components that need to be run separately:
 
@@ -63,29 +75,28 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 python bot.py
 ```
 
-The bot will start and listen for messages containing event links.
-
 ## Railway Deployment
 
-The application requires two services on Railway:
+Before deploying:
+1. Build the frontend locally: `cd frontend && npm install && npm run build`
+2. Commit the built files (they should be in `frontend/dist`)
+3. Push to your repository
 
 ### 1. Flask Web Service
 1. Create a new service pointing to your repository
-2. Set the build command: 
-   ```bash
-   cd frontend && npm install && npm run build && cd ../backend && pip install -r requirements.txt
-   ```
+2. Set the root directory to `/backend`
 3. Set the start command: `gunicorn wsgi:app --bind 0.0.0.0:$PORT`
 4. Add environment variables:
    - `ANTHROPIC_API_KEY`
 
 ### 2. Telegram Bot Service
 1. Create another service pointing to the same repository
-2. Set the start command: `python bot.py`
-3. Add environment variables:
+2. Set the root directory to `/backend`
+3. Set the start command: `python bot.py`
+4. Add environment variables:
    - `TELEGRAM_BOT_TOKEN`
    - `API_URL`: Set to `https://${RAILWAY_STATIC_URL}/api`
-4. Add service dependency:
+5. Add service dependency:
    - Go to Settings > Dependencies
    - Add the Flask service as a dependency
 
