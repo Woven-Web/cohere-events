@@ -32,7 +32,7 @@ function App() {
     setEventDetails(null)
     
     try {
-      const response = await axios.post('http://localhost:5000/parse-event', { url })
+      const response = await axios.post('/parse-event', { url })
       
       if (response.status === 200) {
         const data = response.data
@@ -85,7 +85,7 @@ function App() {
         end_time: eventDetails.end_time?.toISOString()
       }
       
-      const response = await axios.post('http://localhost:5000/create-event', eventToSend)
+      const response = await axios.post('/create-event', eventToSend)
       alert('Event created successfully!')
     } catch (err) {
       console.error('Error creating event:', err.response || err)

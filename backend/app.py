@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import requests
 from bs4 import BeautifulSoup
@@ -12,13 +12,32 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 import pickle
 import logging
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Get environment variables
+ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
-CORS(app)
+# Initialize Flask app
+app = Flask(__name__, static_folder='dist', static_url_path='')
+app.config['TESTING'] = True
+
+@app.route('/')
+def serve_frontend():
+    return app.send_static_file('index.html')
+
+# Catch all routes to handle React Router
+@app.route('/<path:path>')
+def catch_all(path):
+    if path.startswith('api/'):
+        return {'error': 'Not found'}, 404
+    return app.send_static_file('index.html')
 
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/calendar']
@@ -38,8 +57,16 @@ def get_calendar_service():
             creds = flow.run_local_server(port=0)
         with open('token.pickle', 'wb') as token:
             pickle.dump(creds, token)
-
+    
     return build('calendar', 'v3', credentials=creds)
+
+# Initialize calendar service if credentials exist
+calendar_service = None
+try:
+    if os.path.exists('credentials.json'):
+        calendar_service = get_calendar_service()
+except Exception as e:
+    logger.warning(f"Failed to initialize calendar service: {e}")
 
 def validate_event_details(event_details):
     """Validate the parsed event details and return any issues."""
@@ -78,18 +105,24 @@ def validate_event_details(event_details):
         logger.error(f"Validation error: {str(e)}")
         return [f"Validation error: {str(e)}"]
 
-def parse_event_with_ai(page_content, source_url):
+def parse_event_with_ai(page_content, source_url, description_style="default"):
     client = ai.Client()
+    
+    description_prompts = {
+        "default": "A comprehensive description that includes all relevant details about the event. Include any important information like agenda, speakers, requirements, or special notes.",
+        "telegram": "A brief, concise summary of the event (2-3 sentences max) highlighting only the most important details. Focus on what, when, and why someone might want to attend."
+    }
+    
+    description_prompt = description_prompts.get(description_style, description_prompts["default"])
     
     prompt = f"""Extract event details from the following webpage content. 
     Return a JSON object with these fields:
     - title: event title
-    - description: A comprehensive description that includes all relevant details about the event. Include any important information like agenda, speakers, requirements, or special notes. Start the description with 'Source: {source_url}\n\n' followed by the full description.
+    - description: {description_prompt} Start the description with 'Source: {source_url}\n\n' followed by the description.
     - start_time: start time in ISO format
     - end_time: end time in ISO format
     - location: event location
 
-    Make the description detailed but well-organized. Include any important details found in the content, formatted in a readable way.
     Give just the json object with no extra text or formatting.
 
     Webpage content:
@@ -124,6 +157,7 @@ def parse_event_with_ai(page_content, source_url):
 @app.route('/parse-event', methods=['POST'])
 def parse_event():
     url = request.json.get('url')
+    description_style = request.json.get('description_style', 'default')
     if not url:
         return jsonify({'error': 'URL is required'}), 400
     
@@ -151,7 +185,7 @@ def parse_event():
         
         # Use AI to parse the event details
         logger.info("Parsing event details with AI")
-        event_details = parse_event_with_ai(text_content, url)
+        event_details = parse_event_with_ai(text_content, url, description_style)
         
         # Parse the JSON response
         try:
@@ -205,7 +239,10 @@ def create_event():
                 'issues': issues
             }), 400
             
-        service = get_calendar_service()
+        if calendar_service is None:
+            return jsonify({
+                'error': 'Google Calendar is not configured'
+            }), 500
         
         event = {
             'summary': event_details['title'],
@@ -221,7 +258,7 @@ def create_event():
             },
         }
 
-        event = service.events().insert(calendarId='cohere@wovenweb.org', body=event).execute()
+        event = calendar_service.events().insert(calendarId='cohere@wovenweb.org', body=event).execute()
         return jsonify({'eventId': event.get('id')})
     except Exception as e:
         logger.error(f"Calendar event creation error: {str(e)}")
@@ -231,4 +268,4 @@ def create_event():
         }), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run()
