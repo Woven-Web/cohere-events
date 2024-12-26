@@ -79,14 +79,19 @@ python bot.py
 
 Before deploying:
 1. Build the frontend locally: `cd frontend && npm install && npm run build`
-2. Commit the built files (they should be in `frontend/dist`)
-3. Push to your repository
+2. Create a static directory in backend and copy the built files:
+   ```bash
+   mkdir -p backend/static
+   cp -r frontend/dist/* backend/static/
+   ```
+3. Commit and push your changes
 
 ### 1. Flask Web Service
 1. Create a new service pointing to your repository
 2. Set the root directory to `/backend`
-3. Set the start command: `gunicorn wsgi:app --bind 0.0.0.0:$PORT`
-4. Add environment variables:
+3. Set the build command: `pip install -r requirements.txt`
+4. Set the start command: `gunicorn wsgi:app --bind 0.0.0.0:8080`
+5. Add environment variables:
    - `ANTHROPIC_API_KEY`
 
 ### 2. Telegram Bot Service
