@@ -57,7 +57,7 @@ Title: {event_details['title']}
 Time: {event_details['start_time']} - {event_details['end_time']}
 Location: {event_details['location']}
 
-{event_details['description'][:500]}...
+{event_details['description'][:500] + ('...' if len(event_details['description']) > 500 else '')}
             """
             await update.message.reply_text(message_text)
         except Exception as e:
