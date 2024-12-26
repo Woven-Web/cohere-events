@@ -19,15 +19,16 @@ load_dotenv()
 
 # Get environment variables
 ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
-SERVER_URL = os.getenv('SERVER_URL', 'http://127.0.0.1:5000')  # Default to localhost for development
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-app = Flask(__name__, static_folder='../frontend/dist')
+# Initialize Flask app
+app = Flask(__name__, static_folder='static')
 app.config['TESTING'] = True
 CORS(app)
+
+# Initialize calendar service if credentials exist
+calendar_service = None
+if os.path.exists('credentials.json'):
+    calendar_service = get_calendar_service()
 
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/calendar']
@@ -232,7 +233,10 @@ def create_event():
                 'issues': issues
             }), 400
             
-        service = get_calendar_service()
+        if calendar_service is None:
+            return jsonify({
+                'error': 'Google Calendar is not configured'
+            }), 500
         
         event = {
             'summary': event_details['title'],
@@ -248,7 +252,7 @@ def create_event():
             },
         }
 
-        event = service.events().insert(calendarId='cohere@wovenweb.org', body=event).execute()
+        event = calendar_service.events().insert(calendarId='cohere@wovenweb.org', body=event).execute()
         return jsonify({'eventId': event.get('id')})
     except Exception as e:
         logger.error(f"Calendar event creation error: {str(e)}")
