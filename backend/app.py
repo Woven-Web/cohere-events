@@ -123,7 +123,7 @@ def parse_event_with_ai(page_content, source_url, description_style="default"):
     - end_time: end time in ISO format
     - location: event location
 
-    Give just the json object with no extra text or formatting.
+    Give JUST the json object with no extra text or formatting, since it will be parsed by a JSON parser.
 
     Webpage content:
     {page_content}
