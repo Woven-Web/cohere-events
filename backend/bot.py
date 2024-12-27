@@ -75,7 +75,7 @@ Location: {event_details['location']}
             logger.info(f"Stored event with message ID {bot_message.message_id}")
         except Exception as e:
             logger.error("Error processing link: %s", str(e))
-            await update.message.reply_text(f"Sorry, I couldn't parse that event link. Error: {str(e)}")
+            # await update.message.reply_text(f"Sorry, I couldn't parse that event link. Error: {str(e)}")
 
 async def handle_reaction(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle reactions to messages."""
