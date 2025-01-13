@@ -258,7 +258,7 @@ def create_event():
             },
         }
 
-        event = calendar_service.events().insert(calendarId='cohere@wovenweb.org', body=event).execute()
+        event = calendar_service.events().insert(calendarId='cohere@unforced.org', body=event).execute()
         return jsonify({'eventId': event.get('id')})
     except Exception as e:
         logger.error(f"Calendar event creation error: {str(e)}")
