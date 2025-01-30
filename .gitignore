@@ -24,3 +24,7 @@ node_modules/
 frontend/dist/
 build/
 *.log
+
+.DS_STORE
+
+cohere-events.code-workspace

@@ -25,11 +25,13 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [eventDetails, setEventDetails] = useState(null)
   const [error, setError] = useState(null)
+  const [warnings, setWarnings] = useState([])
   const [eventCreated, setEventCreated] = useState(false)
 
   const handleSubmit = async () => {
     setLoading(true)
     setError(null)
+    setWarnings([])
     setEventDetails(null)
     setEventCreated(false)
     
@@ -44,6 +46,9 @@ function App() {
           start_time: data.start_time ? dayjs(data.start_time) : null,
           end_time: data.end_time ? dayjs(data.end_time) : null
         })
+        if (data.warnings) {
+          setWarnings(data.warnings)
+        }
       } else if (response.status === 422 && response.data.parsed_details) {
         const data = response.data.parsed_details
         setEventDetails({
@@ -53,8 +58,11 @@ function App() {
         })
         setError({
           message: 'Event details were parsed but have some issues:',
-          issues: response.data.issues
+          issues: response.data.issues || []
         })
+        if (response.data.warnings) {
+          setWarnings(response.data.warnings)
+        }
       }
     } catch (err) {
       console.error('Error parsing event:', err.response || err)
@@ -137,27 +145,19 @@ function App() {
                 ))}
               </Box>
             )}
-            {error.raw && (
-              <Box sx={{ mt: 2 }}>
-                <Typography color="error.contrastText" variant="subtitle2">
-                  Raw AI Response:
-                </Typography>
-                <Box 
-                  component="pre"
-                  sx={{ 
-                    mt: 1,
-                    p: 2,
-                    bgcolor: 'rgba(0,0,0,0.1)',
-                    borderRadius: 1,
-                    overflow: 'auto',
-                    maxHeight: 200,
-                    color: 'error.contrastText'
-                  }}
-                >
-                  {error.raw}
-                </Box>
-              </Box>
-            )}
+          </Paper>
+        )}
+
+        {warnings.length > 0 && !error && (
+          <Paper sx={{ p: 3, mb: 3, bgcolor: 'warning.light' }}>
+            <Typography variant="h6" color="warning.contrastText" gutterBottom>
+              Note: Some fields are empty
+            </Typography>
+            <Box component="ul" sx={{ color: 'warning.contrastText', mt: 1 }}>
+              {warnings.map((warning, index) => (
+                <li key={index}>{warning}</li>
+              ))}
+            </Box>
           </Paper>
         )}
 
@@ -224,7 +224,7 @@ function App() {
               <Button 
                 variant="contained" 
                 onClick={handleCreateEvent}
-                disabled={loading || (error && !eventDetails) || eventCreated}
+                disabled={loading || eventCreated || (error && error.issues?.some(issue => !issue.startsWith("Empty value")))}
                 sx={{ mt: 2 }}
               >
                 {loading ? <CircularProgress size={24} /> : eventCreated ? 'Event Created' : 'Create Event'}

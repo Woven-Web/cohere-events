@@ -72,6 +72,7 @@ def validate_event_details(event_details):
     """Validate the parsed event details and return any issues."""
     required_fields = ['title', 'description', 'start_time', 'end_time', 'location']
     issues = []
+    warnings = []
     
     try:
         event_dict = json.loads(event_details) if isinstance(event_details, str) else event_details
@@ -82,7 +83,7 @@ def validate_event_details(event_details):
             if field not in event_dict:
                 issues.append(f"Missing required field: {field}")
             elif not event_dict[field]:
-                issues.append(f"Empty value for field: {field}")
+                warnings.append(f"Empty value for field: {field}")
         
         # Validate datetime formats if present
         if 'start_time' in event_dict and event_dict['start_time']:
@@ -97,13 +98,10 @@ def validate_event_details(event_details):
             except ValueError as e:
                 issues.append(f"Invalid end_time format: {str(e)}")
         
-        return issues
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON decode error: {str(e)}")
-        return [f"Failed to parse AI response as JSON: {str(e)}"]
+        return {'errors': issues, 'warnings': warnings}
     except Exception as e:
         logger.error(f"Validation error: {str(e)}")
-        return [f"Validation error: {str(e)}"]
+        return {'errors': [str(e)], 'warnings': []}
 
 def parse_event_with_ai(page_content, source_url, description_style="default"):
     client = ai.Client()
@@ -149,48 +147,81 @@ def parse_event_with_ai(page_content, source_url, description_style="default"):
         # Clean up the response to extract just the JSON object
         content = response.choices[0].message.content.strip()
         
-        # Remove common LLM prefixes
-        prefixes_to_remove = [
-            "Here is the JSON object with the extracted event details:",
-            "Here's the JSON object:",
-            "Here is the event information in JSON format:",
-            "The extracted event details in JSON format:"
-        ]
-        
-        for prefix in prefixes_to_remove:
-            if content.startswith(prefix):
-                content = content[len(prefix):].strip()
-        
-        # Remove any markdown code block formatting
-        if content.startswith("```json"):
-            content = content[7:]
-        if content.startswith("```"):
-            content = content[3:]
-        if content.endswith("```"):
-            content = content[:-3]
-            
-        content = content.strip()
-        
-        logger.info(f"Cleaned AI Response: {content}")
         return content
     except Exception as e:
         logger.error(e)
         logger.error(f"AI parsing error: {str(e)}")
         raise
 
+def clean_json_response(content):
+    """Clean up AI response to extract just the JSON object"""
+    content = content.strip()
+    
+    # Remove common LLM prefixes
+    prefixes_to_remove = [
+        "Here is the JSON object with the extracted event details:",
+        "Here's the JSON object:",
+        "Here is a JSON object with the extracted event details:",
+        "Here is the event information in JSON format:",
+        "The extracted event details in JSON format:"
+    ]
+    
+    for prefix in prefixes_to_remove:
+        if content.lower().startswith(prefix.lower()):
+            content = content[len(prefix):].strip()
+    
+    # Remove any markdown code block formatting
+    if content.startswith("```json"):
+        content = content[7:]
+    if content.startswith("```"):
+        content = content[3:]
+    if content.endswith("```"):
+        content = content[:-3]
+    
+    return content.strip()
+
 def get_page_content(url):
     """Fetch webpage content"""
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'DNT': '1',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1'
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+        'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"macOS"',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1',
+        'Referer': 'https://app.actualize.earth/',
+        'Origin': 'https://app.actualize.earth',
+        'Host': 'app.actualize.earth',
+        'Connection': 'keep-alive'
     }
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
-    return response.text
+
+    # Customize headers based on the domain
+    domain = url.split('/')[2]
+    if domain != 'app.actualize.earth':
+        # Remove site-specific headers for other domains
+        headers.pop('Referer', None)
+        headers.pop('Origin', None)
+        headers.pop('Host', None)
+
+    session = requests.Session()
+    try:
+        response = session.get(url, headers=headers, allow_redirects=True)
+        response.raise_for_status()
+        return response.text
+    except requests.exceptions.SSLError:
+        logger.warning(f"SSL verification failed for {url}, retrying without verification")
+        # If SSL verification fails, try again without verification
+        response = session.get(url, headers=headers, allow_redirects=True, verify=False)
+        response.raise_for_status()
+        return response.text
 
 @app.route('/parse-event', methods=['POST'])
 def parse_event():
@@ -224,28 +255,39 @@ def parse_event():
         logger.info("Parsing event details with AI")
         event_details = parse_event_with_ai(text_content, url, description_style)
         
-        # Parse the JSON response
+        # Clean up and parse the JSON response
         try:
-            parsed_details = json.loads(event_details)
+            cleaned_response = clean_json_response(event_details)
+            parsed_details = json.loads(cleaned_response)
             logger.info(f"Successfully parsed JSON: {parsed_details}")
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON: {str(e)}")
             return jsonify({
                 'error': 'Invalid JSON response from AI',
                 'details': str(e),
-                'raw_response': event_details
+                'raw_response': event_details,
+                'cleaned_response': cleaned_response if 'cleaned_response' in locals() else None
             }), 422
         
         # Validate the parsed details
-        issues = validate_event_details(parsed_details)
+        validation_result = validate_event_details(parsed_details)
         
-        if issues:
-            logger.warning(f"Validation issues found: {issues}")
+        if validation_result['errors']:
+            logger.warning(f"Validation issues found: {validation_result}")
             return jsonify({
                 'error': 'Event parsing issues detected',
-                'issues': issues,
+                'issues': validation_result['errors'],
+                'warnings': validation_result['warnings'],
                 'parsed_details': parsed_details  # Include the parsed details even if there are issues
             }), 422
+        
+        # If we only have warnings, return 200 with warnings
+        if validation_result['warnings']:
+            logger.info(f"Validation warnings found: {validation_result['warnings']}")
+            return jsonify({
+                'warnings': validation_result['warnings'],
+                **parsed_details
+            })
         
         return jsonify(parsed_details)
         
@@ -270,10 +312,10 @@ def create_event():
     try:
         # Validate event details before creating
         issues = validate_event_details(event_details)
-        if issues:
+        if issues['errors']:
             return jsonify({
                 'error': 'Invalid event details',
-                'issues': issues
+                'issues': issues['errors']
             }), 400
             
         if calendar_service is None:
@@ -295,7 +337,7 @@ def create_event():
             },
         }
 
-        event = calendar_service.events().insert(calendarId='cohere@wovenweb.org', body=event).execute()
+        event = calendar_service.events().insert(calendarId='cohere@unforced.org', body=event).execute()
         return jsonify({'eventId': event.get('id')})
     except Exception as e:
         logger.error(f"Calendar event creation error: {str(e)}")
