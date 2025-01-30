@@ -115,15 +115,14 @@ def parse_event_with_ai(page_content, source_url, description_style="default"):
     
     description_prompt = description_prompts.get(description_style, description_prompts["default"])
     
-    prompt = f"""Extract event details from the following webpage content. 
-    Return a JSON object with these fields:
+    prompt = f"""Extract event details from the following webpage content and return ONLY a JSON object with these fields:
     - title: event title
     - description: {description_prompt} Start the description with 'Source: {source_url}\n\n' followed by the description.
     - start_time: start time in ISO format
     - end_time: end time in ISO format
     - location: event location
 
-    Give JUST the json object with no extra text or formatting, since it will be parsed by a JSON parser.
+    IMPORTANT: Return ONLY the JSON object with NO explanatory text before or after. The response must be valid JSON that can be parsed directly.
 
     Webpage content:
     {page_content}
@@ -131,7 +130,7 @@ def parse_event_with_ai(page_content, source_url, description_style="default"):
     
     messages = [{
         "role": "system",
-        "content": "You are an AI assistant that helps users parse events from webpages. Always return valid JSON with the specified fields. Use ISO format for dates (YYYY-MM-DDTHH:MM:SS+HH:MM). For descriptions, be comprehensive and include all relevant details from the source, properly formatted for readability."
+        "content": "You are an AI assistant that helps users parse events from webpages. Return ONLY valid JSON with the specified fields, with no additional text. Use ISO format for dates (YYYY-MM-DDTHH:MM:SS+HH:MM). For descriptions, be comprehensive and include all relevant details from the source, properly formatted for readability."
     }]
     
     messages.append({
@@ -147,12 +146,51 @@ def parse_event_with_ai(page_content, source_url, description_style="default"):
             temperature=0.5
         )
         
-        logger.info(f"AI Response: {response.choices[0].message.content}")
-        return response.choices[0].message.content
+        # Clean up the response to extract just the JSON object
+        content = response.choices[0].message.content.strip()
+        
+        # Remove common LLM prefixes
+        prefixes_to_remove = [
+            "Here is the JSON object with the extracted event details:",
+            "Here's the JSON object:",
+            "Here is the event information in JSON format:",
+            "The extracted event details in JSON format:"
+        ]
+        
+        for prefix in prefixes_to_remove:
+            if content.startswith(prefix):
+                content = content[len(prefix):].strip()
+        
+        # Remove any markdown code block formatting
+        if content.startswith("```json"):
+            content = content[7:]
+        if content.startswith("```"):
+            content = content[3:]
+        if content.endswith("```"):
+            content = content[:-3]
+            
+        content = content.strip()
+        
+        logger.info(f"Cleaned AI Response: {content}")
+        return content
     except Exception as e:
         logger.error(e)
         logger.error(f"AI parsing error: {str(e)}")
         raise
+
+def get_page_content(url):
+    """Fetch webpage content"""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
+    }
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    return response.text
 
 @app.route('/parse-event', methods=['POST'])
 def parse_event():
@@ -164,10 +202,9 @@ def parse_event():
     try:
         # Fetch webpage content
         logger.info(f"Fetching content from URL: {url}")
-        response = requests.get(url)
-        response.raise_for_status()
+        page_content = get_page_content(url)
         
-        soup = BeautifulSoup(response.text, 'html.parser')
+        soup = BeautifulSoup(page_content, 'html.parser')
         
         # Get text content, preserving some structure
         # Remove script and style elements

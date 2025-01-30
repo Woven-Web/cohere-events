@@ -25,11 +25,13 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [eventDetails, setEventDetails] = useState(null)
   const [error, setError] = useState(null)
+  const [eventCreated, setEventCreated] = useState(false)
 
   const handleSubmit = async () => {
     setLoading(true)
     setError(null)
     setEventDetails(null)
+    setEventCreated(false)
     
     try {
       const response = await axios.post('/parse-event', { url })
@@ -86,6 +88,7 @@ function App() {
       }
       
       const response = await axios.post('/create-event', eventToSend)
+      setEventCreated(true)
       alert('Event created successfully!')
     } catch (err) {
       console.error('Error creating event:', err.response || err)
@@ -221,10 +224,10 @@ function App() {
               <Button 
                 variant="contained" 
                 onClick={handleCreateEvent}
-                disabled={loading || (error && !eventDetails)}
+                disabled={loading || (error && !eventDetails) || eventCreated}
                 sx={{ mt: 2 }}
               >
-                {loading ? <CircularProgress size={24} /> : 'Create Event'}
+                {loading ? <CircularProgress size={24} /> : eventCreated ? 'Event Created' : 'Create Event'}
               </Button>
             </LocalizationProvider>
           </Paper>
